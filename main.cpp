@@ -82,6 +82,10 @@ HWND hSpeedTrackbar, hSpeedLabel;
 ToolType currentTool = TOOL_WALL;
 HANDLE hAStarThread = NULL;
 
+// 鼠标状态跟踪
+bool isMouseDownOnControl = false;
+bool ignoreNextMouseMove = false;
+
 // 颜色定义
 COLORREF GetCellColor(CellType type) {
     switch (type) {
@@ -242,6 +246,18 @@ DWORD WINAPI AStarSearch(LPVOID lpParam) {
 
             if (grid[newY][newX] == CELL_WALL || closedSet[newY][newX])
                 continue;
+
+            // 检查对角线移动是否被直角墙阻挡
+            if (i >= 4) { // 对角线移动
+                int dx1 = directions[i][0], dy1 = 0;
+                int dx2 = 0, dy2 = directions[i][1];
+
+                // 如果两个相邻的直角位置都是墙，则不能对角线移动
+                if (grid[current->y + dy1][current->x + dx1] == CELL_WALL &&
+                    grid[current->y + dy2][current->x + dx2] == CELL_WALL) {
+                    continue;
+                }
+            }
 
             int newG = current->g + ((i < 4) ? 10 : 14);
 
@@ -632,13 +648,21 @@ void HandleMapClick(int x, int y, bool isDragging) {
     rect.bottom = rect.top + CELL_SIZE;
     InvalidateRect(hMainWnd, &rect, FALSE);
 
-    // 添加UI区域重绘
-    RECT uiRect;
-    uiRect.left = GRID_WIDTH * CELL_SIZE;
-    uiRect.top = 0;
-    uiRect.right = WINDOW_WIDTH;
-    uiRect.bottom = WINDOW_HEIGHT;
-    InvalidateRect(hMainWnd, &uiRect, TRUE);
+    // 只有当状态真正改变时才重绘UI区域
+    static bool lastHasStart = false;
+    static bool lastHasEnd = false;
+
+    if (hasStart != lastHasStart || hasEnd != lastHasEnd) {
+        RECT uiRect;
+        uiRect.left = GRID_WIDTH * CELL_SIZE;
+        uiRect.top = 0;
+        uiRect.right = WINDOW_WIDTH;
+        uiRect.bottom = WINDOW_HEIGHT;
+        InvalidateRect(hMainWnd, &uiRect, TRUE);
+
+        lastHasStart = hasStart;
+        lastHasEnd = hasEnd;
+    }
 }
 
 // 窗口过程函数
@@ -765,31 +789,61 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         break;
 
     case WM_LBUTTONDOWN:
-        if (!isRunning) {
-            int x = GET_X_LPARAM(lParam) / CELL_SIZE;
-            int y = GET_Y_LPARAM(lParam) / CELL_SIZE;
+    {
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
 
-            if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+        // 检查是否点击在控件上
+        HWND hControl = ChildWindowFromPoint(hWnd, { x, y });
+        if (hControl != hWnd && hControl != NULL) {
+            // 点击在控件上，设置标志位
+            isMouseDownOnControl = true;
+            ignoreNextMouseMove = true;
+            break;
+        }
+
+        // 原有的地图点击处理
+        if (!isRunning) {
+            int gridX = x / CELL_SIZE;
+            int gridY = y / CELL_SIZE;
+            if (gridX >= 0 && gridX < GRID_WIDTH && gridY >= 0 && gridY < GRID_HEIGHT) {
                 isDragging = true;
-                HandleMapClick(x, y, false);
+                HandleMapClick(gridX, gridY, false);
             }
         }
         break;
+    }
+
+    case WM_LBUTTONUP:
+    {
+        // 重置控件点击标志
+        isMouseDownOnControl = false;
+        ignoreNextMouseMove = false;
+        isDragging = false;
+        break;
+    }
 
     case WM_MOUSEMOVE:
+    {
+        if (ignoreNextMouseMove) {
+            ignoreNextMouseMove = false;
+            break;
+        }
+
+        if (isMouseDownOnControl) {
+            // 如果鼠标在控件上按下，现在在移动，忽略地图操作
+            break;
+        }
+
         if (isDragging && !isRunning) {
             int x = GET_X_LPARAM(lParam) / CELL_SIZE;
             int y = GET_Y_LPARAM(lParam) / CELL_SIZE;
-
             if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
                 HandleMapClick(x, y, true);
             }
         }
         break;
-
-    case WM_LBUTTONUP:
-        isDragging = false;
-        break;
+    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
