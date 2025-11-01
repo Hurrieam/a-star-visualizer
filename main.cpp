@@ -85,6 +85,7 @@ HANDLE hAStarThread = NULL;
 // 鼠标状态跟踪
 bool isMouseDownOnControl = false;
 bool ignoreNextMouseMove = false;
+POINT lastMousePos = { -1, -1 };  // 记录上一次鼠标位置
 
 // 颜色定义
 COLORREF GetCellColor(CellType type) {
@@ -665,6 +666,33 @@ void HandleMapClick(int x, int y, bool isDragging) {
     }
 }
 
+// 在两点之间绘制直线（填充中间的单元格）
+void DrawLineBetweenPoints(int x1, int y1, int x2, int y2) {
+    // 使用Bresenham直线算法填充两点之间的所有单元格
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+
+    while (true) {
+        // 处理当前单元格
+        HandleMapClick(x1, y1, true);
+
+        if (x1 == x2 && y1 == y2) break;
+
+        int e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+}
+
 // 窗口过程函数
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     static bool isDragging = false;
@@ -810,6 +838,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             int gridY = y / CELL_SIZE;
             if (gridX >= 0 && gridX < GRID_WIDTH && gridY >= 0 && gridY < GRID_HEIGHT) {
                 isDragging = true;
+                lastMousePos = { gridX, gridY };  // 记录起始位置
                 HandleMapClick(gridX, gridY, false);
             }
         }
@@ -832,7 +861,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             int y = GET_Y_LPARAM(lParam);
             int gridX = x / CELL_SIZE;
             int gridY = y / CELL_SIZE;
-            HandleMapClick(gridX, gridY, true);
+
+            if (gridX >= 0 && gridX < GRID_WIDTH && gridY >= 0 && gridY < GRID_HEIGHT) {
+                // 使用直线算法填充两点之间的所有单元格
+                if (lastMousePos.x != -1 && lastMousePos.y != -1) {
+                    DrawLineBetweenPoints(lastMousePos.x, lastMousePos.y, gridX, gridY);
+                }
+                else {
+                    HandleMapClick(gridX, gridY, true);
+                }
+                lastMousePos = { gridX, gridY };  // 更新最后位置
+            }
         }
     }
     break;
@@ -841,6 +880,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         isDragging = false;
         isMouseDownOnControl = false;
         ignoreNextMouseMove = false;
+        lastMousePos = { -1, -1 };  // 重置最后位置
         break;
 
     case WM_COMMAND:
