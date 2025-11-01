@@ -77,7 +77,7 @@ POINT endPos = { -1, -1 };
 HINSTANCE hInst;
 HWND hMainWnd;
 HWND hToolRadio[4];
-HWND hStartButton, hStopButton, hPauseButton, hClearButton, hRandomButton, hSaveButton, hLoadButton;
+HWND hStartButton, hStopButton, hPauseButton, hClearButton, hRandomButton, hSaveButton, hLoadButton, hExitButton;
 HWND hSpeedTrackbar, hSpeedLabel;
 ToolType currentTool = TOOL_WALL;
 HANDLE hAStarThread = NULL;
@@ -726,6 +726,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             rightPanelX, buttonY + 165, 180, 28, hWnd, (HMENU)109, hInst, NULL);
         hLoadButton = CreateWindow(L"BUTTON", L"加载地图", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             rightPanelX, buttonY + 198, 180, 28, hWnd, (HMENU)110, hInst, NULL);
+        hExitButton = CreateWindow(L"BUTTON", L"退出程序", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            rightPanelX, buttonY + 231, 180, 28, hWnd, (HMENU)112, hInst, NULL);
     }
     break;
 
@@ -811,17 +813,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 HandleMapClick(gridX, gridY, false);
             }
         }
-        break;
     }
-
-    case WM_LBUTTONUP:
-    {
-        // 重置控件点击标志
-        isMouseDownOnControl = false;
-        ignoreNextMouseMove = false;
-        isDragging = false;
-        break;
-    }
+    break;
 
     case WM_MOUSEMOVE:
     {
@@ -831,150 +824,125 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         }
 
         if (isMouseDownOnControl) {
-            // 如果鼠标在控件上按下，现在在移动，忽略地图操作
             break;
         }
 
         if (isDragging && !isRunning) {
-            int x = GET_X_LPARAM(lParam) / CELL_SIZE;
-            int y = GET_Y_LPARAM(lParam) / CELL_SIZE;
-            if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-                HandleMapClick(x, y, true);
-            }
+            int x = GET_X_LPARAM(lParam);
+            int y = GET_Y_LPARAM(lParam);
+            int gridX = x / CELL_SIZE;
+            int gridY = y / CELL_SIZE;
+            HandleMapClick(gridX, gridY, true);
         }
-        break;
     }
+    break;
+
+    case WM_LBUTTONUP:
+        isDragging = false;
+        isMouseDownOnControl = false;
+        ignoreNextMouseMove = false;
+        break;
 
     case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case 100: case 101: case 102: case 103:
-            currentTool = static_cast<ToolType>(LOWORD(wParam) - 100);
-            CheckRadioButton(hWnd, 100, 103, LOWORD(wParam));
+    {
+        int wmId = LOWORD(wParam);
+        switch (wmId) {
+        case 100: // 墙壁工具
+            currentTool = TOOL_WALL;
             break;
-
-        case 104:
-            if (!isRunning) {
-                if (!hasStart || !hasEnd) {
-                    MessageBox(hWnd, L"请先设置起点和终点！", L"提示", MB_OK | MB_ICONINFORMATION);
-                    break;
-                }
+        case 101: // 起点工具
+            currentTool = TOOL_START;
+            break;
+        case 102: // 终点工具
+            currentTool = TOOL_END;
+            break;
+        case 103: // 擦除工具
+            currentTool = TOOL_ERASE;
+            break;
+        case 104: // 开始寻路
+            if (!isRunning && hasStart && hasEnd) {
+                StopAStar();
                 isRunning = true;
+                isPaused = false;
+                pathFound = false;
                 hAStarThread = CreateThread(NULL, 0, AStarSearch, NULL, 0, NULL);
-
-                // 添加UI重绘
-                RECT uiRect;
-                uiRect.left = GRID_WIDTH * CELL_SIZE;
-                uiRect.top = 0;
-                uiRect.right = WINDOW_WIDTH;
-                uiRect.bottom = WINDOW_HEIGHT;
-                InvalidateRect(hWnd, &uiRect, TRUE);
+            }
+            else if (!hasStart || !hasEnd) {
+                MessageBox(hWnd, L"请先设置起点和终点！", L"提示", MB_OK | MB_ICONINFORMATION);
             }
             break;
-
-        case 105:
+        case 105: // 停止
             StopAStar();
-            // 添加UI重绘
-            {
-                RECT uiRect;
-                uiRect.left = GRID_WIDTH * CELL_SIZE;
-                uiRect.top = 0;
-                uiRect.right = WINDOW_WIDTH;
-                uiRect.bottom = WINDOW_HEIGHT;
-                InvalidateRect(hWnd, &uiRect, TRUE);
-            }
             break;
-
-        case 106:
+        case 106: // 暂停/继续
             if (isRunning) {
                 isPaused = !isPaused;
-                InvalidateRect(hWnd, NULL, TRUE);
             }
             break;
-
-        case 107:
-            if (!isRunning) {
-                StopAStar();
-                for (int y = 0; y < GRID_HEIGHT; y++) {
-                    for (int x = 0; x < GRID_WIDTH; x++) {
-                        grid[y][x] = CELL_EMPTY;
-                    }
+        case 107: // 清空地图
+            StopAStar();
+            for (int y = 0; y < GRID_HEIGHT; y++) {
+                for (int x = 0; x < GRID_WIDTH; x++) {
+                    grid[y][x] = CELL_EMPTY;
                 }
-                hasStart = false;
-                hasEnd = false;
-                startPos = { -1, -1 };
-                endPos = { -1, -1 };
-                InvalidateRect(hWnd, NULL, TRUE);
             }
+            hasStart = false;
+            hasEnd = false;
+            startPos = { -1, -1 };
+            endPos = { -1, -1 };
+            InvalidateRect(hWnd, NULL, TRUE);
             break;
+        case 108: // 随机地图
+            StopAStar();
+            GenerateRandomMap();
+            InvalidateRect(hWnd, NULL, TRUE);
+            break;
+        case 109: // 保存地图
+            SaveMap();
+            break;
+        case 110: // 加载地图
+            LoadMap();
+            break;
+        case 112: // 退出程序
+        {
+            // 防止误点退出按钮的确认对话框
+            int result = MessageBox(hWnd,
+                L"确定要退出程序吗？\n\n如果正在运行寻路算法，将会被终止。",
+                L"确认退出",
+                MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
 
-        case 108:
-            if (!isRunning) {
+            if (result == IDYES) {
+                // 停止正在运行的算法
                 StopAStar();
-                GenerateRandomMap();
-                InvalidateRect(hWnd, NULL, TRUE);
+                PostQuitMessage(0);
             }
-            break;
-
-        case 109:
-            if (!isRunning) {
-                SaveMap();
-            }
-            break;
-
-        case 110:
-            if (!isRunning) {
-                LoadMap();
-                // 添加UI重绘
-                RECT uiRect;
-                uiRect.left = GRID_WIDTH * CELL_SIZE;
-                uiRect.top = 0;
-                uiRect.right = WINDOW_WIDTH;
-                uiRect.bottom = WINDOW_HEIGHT;
-                InvalidateRect(hWnd, &uiRect, TRUE);
-            }
-            break;
         }
         break;
+        }
+    }
+    break;
 
     case WM_KEYDOWN:
         switch (wParam) {
-        case 'S': case 's':
-            if (!isRunning) {
-                if (!hasStart || !hasEnd) {
-                    MessageBox(hWnd, L"请先设置起点和终点！", L"提示", MB_OK | MB_ICONINFORMATION);
-                    break;
-                }
+        case 'S':
+        case 's':
+            if (!isRunning && hasStart && hasEnd) {
+                StopAStar();
                 isRunning = true;
+                isPaused = false;
+                pathFound = false;
                 hAStarThread = CreateThread(NULL, 0, AStarSearch, NULL, 0, NULL);
-
-                // 添加UI重绘
-                RECT uiRect;
-                uiRect.left = GRID_WIDTH * CELL_SIZE;
-                uiRect.top = 0;
-                uiRect.right = WINDOW_WIDTH;
-                uiRect.bottom = WINDOW_HEIGHT;
-                InvalidateRect(hWnd, &uiRect, TRUE);
             }
             break;
-
-        case 'P': case 'p':
+        case 'P':
+        case 'p':
             if (isRunning) {
                 isPaused = !isPaused;
-                InvalidateRect(hWnd, NULL, TRUE);
             }
             break;
-
-        case 'T': case 't':
+        case 'T':
+        case 't':
             StopAStar();
-            // 添加UI重绘
-            {
-                RECT uiRect;
-                uiRect.left = GRID_WIDTH * CELL_SIZE;
-                uiRect.top = 0;
-                uiRect.right = WINDOW_WIDTH;
-                uiRect.bottom = WINDOW_HEIGHT;
-                InvalidateRect(hWnd, &uiRect, TRUE);
-            }
             break;
         }
         break;
@@ -990,16 +958,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     return 0;
 }
 
-// 注册窗口类
-BOOL RegisterWindowClass() {
-    WNDCLASSEX wcex;
+// 应用程序入口点
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    hInst = hInstance;
 
+    // 注册窗口类
+    WNDCLASSEX wcex;
     wcex.cbSize = sizeof(WNDCLASSEX);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
-    wcex.hInstance = hInst;
+    wcex.hInstance = hInstance;
     wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
@@ -1007,38 +977,35 @@ BOOL RegisterWindowClass() {
     wcex.lpszClassName = L"AStarVisualizer";
     wcex.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 
-    return RegisterClassEx(&wcex);
-}
-
-// 主函数
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    hInst = hInstance;
-
-    // 设置进程工作集大小，优化内存使用
-    SetProcessWorkingSetSize(GetCurrentProcess(), 1024 * 1024, 4 * 1024 * 1024);
-
-    if (!RegisterWindowClass()) {
-        MessageBox(NULL, L"窗口类注册失败!可能的原因：\n1. 类名已被占用\n2. 系统资源不足\n3. 程序重复运行", L"错误", MB_ICONERROR);
+    if (!RegisterClassEx(&wcex)) {
+        MessageBox(NULL, L"窗口类注册失败！", L"错误", MB_OK | MB_ICONERROR);
         return 1;
     }
 
+    // 计算窗口位置居中显示
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    int windowX = (screenWidth - WINDOW_WIDTH) / 2;
+    int windowY = (screenHeight - WINDOW_HEIGHT) / 2;
+
+    // 创建窗口
     hMainWnd = CreateWindow(
         L"AStarVisualizer",
         L"A*寻路算法可视化工具",
         WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        windowX, windowY,
         WINDOW_WIDTH, WINDOW_HEIGHT,
-        NULL, NULL, hInstance, NULL
-    );
+        NULL, NULL, hInstance, NULL);
 
     if (!hMainWnd) {
-        MessageBox(NULL, L"窗口创建失败!可能的原因：\n1. 系统资源不足\n2. 窗口类注册失败\n3. 内存不足", L"错误", MB_ICONERROR);
+        MessageBox(NULL, L"窗口创建失败！", L"错误", MB_OK | MB_ICONERROR);
         return 1;
     }
 
     ShowWindow(hMainWnd, nCmdShow);
     UpdateWindow(hMainWnd);
 
+    // 消息循环
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
