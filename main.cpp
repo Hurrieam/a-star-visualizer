@@ -1023,16 +1023,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    // 计算窗口大小（包含标题栏和边框）
-    RECT windowRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
-    AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
-    int windowWidth = windowRect.right - windowRect.left;
-    int windowHeight = windowRect.bottom - windowRect.top;
+    // 计算窗口位置居中显示
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    int windowX = (screenWidth - WINDOW_WIDTH) / 2;
+    int windowY = (screenHeight - WINDOW_HEIGHT) / 2;
 
     // 创建窗口
-    hMainWnd = CreateWindow(L"AStarVisualizer", L"A*寻路算法可视化工具",
+    hMainWnd = CreateWindow(
+        L"AStarVisualizer",
+        L"A*寻路算法可视化工具",
         WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight,
+        windowX, windowY,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
         NULL, NULL, hInstance, NULL);
 
     if (!hMainWnd) {
