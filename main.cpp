@@ -101,6 +101,17 @@ COLORREF GetCellColor(CellType type) {
     }
 }
 
+// 更新UI状态显示
+void UpdateUIStatus() {
+    RECT uiRect;
+    uiRect.left = GRID_WIDTH * CELL_SIZE;
+    uiRect.top = 0;
+    uiRect.right = WINDOW_WIDTH;
+    uiRect.bottom = WINDOW_HEIGHT;
+    InvalidateRect(hMainWnd, &uiRect, TRUE);
+    UpdateWindow(hMainWnd);
+}
+
 // 计算启发式距离（曼哈顿距离）
 int CalculateHeuristic(int x1, int y1, int x2, int y2) {
     return abs(x1 - x2) + abs(y1 - y2);
@@ -131,6 +142,7 @@ void StopAStar() {
         }
 
         InvalidateRect(hMainWnd, NULL, TRUE);
+        UpdateUIStatus(); // 更新UI状态
     }
 }
 
@@ -213,14 +225,7 @@ DWORD WINAPI AStarSearch(LPVOID lpParam) {
 
             isRunning = false;
             isPaused = false;
-
-            // 添加UI重绘
-            RECT uiRect;
-            uiRect.left = GRID_WIDTH * CELL_SIZE;
-            uiRect.top = 0;
-            uiRect.right = WINDOW_WIDTH;
-            uiRect.bottom = WINDOW_HEIGHT;
-            InvalidateRect(hMainWnd, &uiRect, TRUE);
+            UpdateUIStatus(); // 更新UI状态
 
             return 0;
         }
@@ -330,14 +335,7 @@ DWORD WINAPI AStarSearch(LPVOID lpParam) {
 
     isRunning = false;
     isPaused = false;
-
-    // 添加UI重绘
-    RECT uiRect;
-    uiRect.left = GRID_WIDTH * CELL_SIZE;
-    uiRect.top = 0;
-    uiRect.right = WINDOW_WIDTH;
-    uiRect.bottom = WINDOW_HEIGHT;
-    InvalidateRect(hMainWnd, &uiRect, TRUE);
+    UpdateUIStatus(); // 更新UI状态
 
     return 0;
 }
@@ -457,6 +455,7 @@ void LoadMap() {
             hasEnd = (endPos.x != -1 && endPos.y != -1);
 
             InvalidateRect(hMainWnd, NULL, TRUE);
+            UpdateUIStatus(); // 更新UI状态
         }
     }
 }
@@ -654,12 +653,7 @@ void HandleMapClick(int x, int y, bool isDragging) {
     static bool lastHasEnd = false;
 
     if (hasStart != lastHasStart || hasEnd != lastHasEnd) {
-        RECT uiRect;
-        uiRect.left = GRID_WIDTH * CELL_SIZE;
-        uiRect.top = 0;
-        uiRect.right = WINDOW_WIDTH;
-        uiRect.bottom = WINDOW_HEIGHT;
-        InvalidateRect(hMainWnd, &uiRect, TRUE);
+        UpdateUIStatus(); // 使用新的UI更新函数
 
         lastHasStart = hasStart;
         lastHasEnd = hasEnd;
@@ -809,12 +803,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             int speedLevel = (int)SendMessage(hSpeedTrackbar, TBM_GETPOS, 0, 0);
             // 修改速度计算公式，范围1-10对应速度100-10
             visualizationSpeed = 110 - (speedLevel * 10);
-            RECT uiRect;
-            uiRect.left = GRID_WIDTH * CELL_SIZE;
-            uiRect.top = 0;
-            uiRect.right = WINDOW_WIDTH;
-            uiRect.bottom = WINDOW_HEIGHT;
-            InvalidateRect(hWnd, &uiRect, TRUE);
+            UpdateUIStatus(); // 更新UI状态
         }
         break;
 
@@ -906,6 +895,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 isPaused = false;
                 pathFound = false;
                 hAStarThread = CreateThread(NULL, 0, AStarSearch, NULL, 0, NULL);
+                UpdateUIStatus(); // 更新UI状态
             }
             else if (!hasStart || !hasEnd) {
                 MessageBox(hWnd, L"请先设置起点和终点！", L"提示", MB_OK | MB_ICONINFORMATION);
@@ -917,6 +907,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case 106: // 暂停/继续
             if (isRunning) {
                 isPaused = !isPaused;
+                UpdateUIStatus(); // 更新UI状态
             }
             break;
         case 107: // 清空地图
@@ -931,11 +922,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             startPos = { -1, -1 };
             endPos = { -1, -1 };
             InvalidateRect(hWnd, NULL, TRUE);
+            UpdateUIStatus(); // 更新UI状态
             break;
         case 108: // 随机地图
             StopAStar();
             GenerateRandomMap();
             InvalidateRect(hWnd, NULL, TRUE);
+            UpdateUIStatus(); // 更新UI状态
             break;
         case 109: // 保存地图
             SaveMap();
@@ -972,12 +965,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 isPaused = false;
                 pathFound = false;
                 hAStarThread = CreateThread(NULL, 0, AStarSearch, NULL, 0, NULL);
+                UpdateUIStatus(); // 更新UI状态
             }
             break;
         case 'P':
         case 'p':
             if (isRunning) {
                 isPaused = !isPaused;
+                UpdateUIStatus(); // 更新UI状态
             }
             break;
         case 'T':
