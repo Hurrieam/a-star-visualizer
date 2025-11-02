@@ -885,8 +885,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             break;
 
         case 112: // 退出程序
-            PostQuitMessage(0);
-            break;
+        {
+            int result = MessageBox(hWnd,
+                L"确定要退出程序吗？\n\n如果正在运行寻路算法，将会被终止。",
+                L"确认退出",
+                MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+
+            if (result == IDYES) {
+                // 停止正在运行的算法
+                StopAStar();
+                PostQuitMessage(0);
+            }
+        }
+        break;
 
         case 113: // 关于按钮
             ShowAboutDialog();
