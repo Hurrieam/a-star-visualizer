@@ -342,7 +342,10 @@ DWORD WINAPI AStarSearch(LPVOID lpParam) {
 
 // 生成随机地图
 void GenerateRandomMap(int wallProbability = 30) {
-    srand(static_cast<unsigned int>(time(NULL)));
+    // 使用高精度计数器作为随机数种子
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    srand(static_cast<unsigned int>(counter.LowPart));
 
     hasStart = false;
     hasEnd = false;
